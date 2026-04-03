@@ -1,11 +1,11 @@
 import { useEffect, useRef, useCallback } from "react";
 import { MAP_W, MAP_H, INITIAL_MASS, AI_COUNT, BH_COUNT, PALETTES } from "./constants.js";
-import { wrapPos } from "./utils.js";
+import { wrapPos, wrapDx, wrapDy } from "./utils.js";
 import { spawnFood, spawnBH, spawnAI } from "./spawners.js";
 import { updatePhysics } from "./physics.js";
 import { render } from "./renderer.js";
 
-export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setDead, setLb }) {
+export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setDead, setLb, setSpeedLb }) {
   const canvasRef = useRef(null);
   const stRef = useRef(null);
   const afRef = useRef(null);
@@ -82,6 +82,25 @@ export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setDead,
       const playerDied = updatePhysics(S, dt, W, H, cfgRef.current, setDead);
       if (playerDied) setDead(true);
 
+      // --- Adaptive camera follow (dt-based, snaps harder when far away) ---
+      if (S.p.alive) {
+        const camDx = wrapDx(S.cam.x, S.p.x);
+        const camDy = wrapDy(S.cam.y, S.p.y);
+        const camDist = Math.sqrt(camDx * camDx + camDy * camDy);
+        // exponential lerp + distance boost so fast movement doesn't escape camera
+        const lf = Math.min(1 - Math.exp(-10 * dt) + camDist * 0.0008, 1.0);
+        S.cam.x = ((S.cam.x + camDx * lf) % MAP_W + MAP_W) % MAP_W;
+        S.cam.y = ((S.cam.y + camDy * lf) % MAP_H + MAP_H) % MAP_H;
+      }
+
+      // --- Top speed tracking ---
+      const pSpd = Math.sqrt(S.p.vx ** 2 + S.p.vy ** 2);
+      if (pSpd > (S.p.topSpeed || 0)) S.p.topSpeed = pSpd;
+      for (const a of S.ais) {
+        const spd = Math.sqrt(a.vx ** 2 + a.vy ** 2);
+        if (spd > (a.topSpeed || 0)) a.topSpeed = spd;
+      }
+
       if (S.p.alive) setScore(Math.floor(S.p.mass));
 
       lbT -= dt;
@@ -92,6 +111,12 @@ export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setDead,
         for (const a of S.ais) if (a.alive) e.push({ n: a.name, m: a.mass, p: false });
         e.sort((a, b) => b.m - a.m);
         setLb(e.slice(0, 6));
+
+        const sv = [];
+        sv.push({ n: "YOU", v: S.p.topSpeed || 0, p: true });
+        for (const a of S.ais) sv.push({ n: a.name, v: a.topSpeed || 0, p: false });
+        sv.sort((a, b) => b.v - a.v);
+        setSpeedLb(sv.slice(0, 5));
       }
 
       // Food pulse is updated in renderer; BH pulse updated here

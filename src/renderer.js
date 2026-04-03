@@ -5,14 +5,6 @@ export function render(ctx, S, W, H, cfg) {
   const P = S.p;
   const zoom = Math.max(0.25, 1 / (1 + P.mass * 0.004));
 
-  // Camera smooth follow
-  if (P.alive) {
-    S.cam.x += wrapDx(S.cam.x, P.x) * 0.15;
-    S.cam.y += wrapDy(S.cam.y, P.y) * 0.15;
-  }
-  S.cam.x = ((S.cam.x % MAP_W) + MAP_W) % MAP_W;
-  S.cam.y = ((S.cam.y % MAP_H) + MAP_H) % MAP_H;
-
   // Visual position helpers: wrap entity to be closest to camera
   const vx = (x) => { let d = x - S.cam.x; if (d > MAP_W / 2) d -= MAP_W; if (d < -MAP_W / 2) d += MAP_W; return S.cam.x + d; };
   const vy = (y) => { let d = y - S.cam.y; if (d > MAP_H / 2) d -= MAP_H; if (d < -MAP_H / 2) d += MAP_H; return S.cam.y + d; };
@@ -71,6 +63,38 @@ export function render(ctx, S, W, H, cfg) {
   // Wells
   for (const a of S.ais) drawWell(ctx, a, a.name, false, vx, vy);
   if (P.alive) drawWell(ctx, P, "YOU", true, vx, vy);
+
+  // Dotted line to strongest attractor
+  if (P.alive) {
+    let maxPull = 0, attractor = null, attractorIsBH = false;
+    for (const w of wells) {
+      if (w === P) continue;
+      const d = di(P, w); if (d < 1) continue;
+      const pull = cfg.wellG * w.mass / (d * d);
+      if (pull > maxPull) { maxPull = pull; attractor = w; attractorIsBH = false; }
+    }
+    for (const bh of S.bhs) {
+      const d = di(P, bh); if (d < 1) continue;
+      const pull = cfg.wellG * cfg.bhMass / (d * d);
+      if (pull > maxPull) { maxPull = pull; attractor = bh; attractorIsBH = true; }
+    }
+    if (attractor && maxPull > 0.5) {
+      const alpha = Math.min(maxPull * 0.004, 0.6);
+      ctx.save();
+      ctx.setLineDash([6 / zoom, 10 / zoom]);
+      ctx.lineWidth = 1.5 / zoom;
+      ctx.strokeStyle = attractorIsBH
+        ? `rgba(180, 60, 255, ${alpha})`
+        : `rgba(255, 80, 80, ${alpha})`;
+      ctx.beginPath();
+      ctx.moveTo(vx(P.x), vy(P.y));
+      ctx.lineTo(vx(attractor.x), vy(attractor.y));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+    S._attractor = { src: attractor, isBH: attractorIsBH, pull: maxPull };
+  }
 
   ctx.restore();
 
@@ -206,9 +230,23 @@ function drawHUD(ctx, S, P, W, H, zoom, cfg, vx, vy, wells) {
       ctx.fillText(`← ${pullSrc} PULL →`, W / 2, H - 42);
     }
 
-    // Velocity display
-    ctx.fillStyle = "rgba(255,255,255,0.2)"; ctx.font = "300 10px 'JetBrains Mono', monospace"; ctx.textAlign = "left";
-    ctx.fillText(`${Math.floor(Math.sqrt(P.vx ** 2 + P.vy ** 2))} v`, 12, H - 12);
+    // Stats panel: speed / accel / mass
+    const spd = Math.floor(Math.sqrt(P.vx ** 2 + P.vy ** 2));
+    const acc = Math.floor(P.accel || 0);
+    const stats = [
+      { label: "SPD", value: spd },
+      { label: "ACC", value: acc },
+      { label: "MASS", value: Math.floor(P.mass) },
+    ];
+    ctx.font = "300 10px 'JetBrains Mono', monospace";
+    ctx.textAlign = "left";
+    stats.forEach(({ label, value }, i) => {
+      const y = H - 12 - i * 16;
+      ctx.fillStyle = "rgba(255,255,255,0.2)";
+      ctx.fillText(label, 12, y);
+      ctx.fillStyle = "rgba(255,255,255,0.65)";
+      ctx.fillText(value, 46, y);
+    });
   }
 
   // Minimap

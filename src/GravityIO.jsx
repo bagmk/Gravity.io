@@ -19,13 +19,14 @@ export default function GravityIO() {
   const [dead, setDead] = useState(false);
   const [started, setStarted] = useState(false);
   const [lb, setLb] = useState([]);
+  const [speedLb, setSpeedLb] = useState([]);
   const [cfg, setCfg] = useState({
     drag: 50, thrust: 50, foodG: 50,
     wellG: 50, bhMass: 50, foodCount: 50,
   });
 
   const { canvasRef, stRef, init } = useGameLoop({
-    started, cfg, logVal, DEFAULTS, setScore, setDead, setLb,
+    started, cfg, logVal, DEFAULTS, setScore, setDead, setLb, setSpeedLb,
   });
 
   // Mobile boost button handlers — directly toggle "Space" key in game state
@@ -91,11 +92,22 @@ export default function GravityIO() {
         <span style={{ marginLeft: 5, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>MASS</span>
       </div>
 
-      {/* Leaderboard */}
-      <div style={{ position: "absolute", top: 14, right: 10, color: "rgba(255,255,255,0.35)", fontSize: 10, lineHeight: 1.9, pointerEvents: "none" }}>
+      {/* Mass leaderboard */}
+      <div style={{ position: "absolute", top: 14, right: 10, color: "rgba(255,255,255,0.35)", fontSize: 10, lineHeight: 1.9, pointerEvents: "none", textAlign: "right" }}>
+        <div style={{ color: "rgba(255,255,255,0.15)", fontSize: 8, letterSpacing: "0.1em", marginBottom: 2 }}>MASS</div>
         {lb.map((e, i) => (
           <div key={i} style={{ color: e.p ? "#845ef7" : "rgba(255,255,255,0.3)" }}>
             {i + 1}. {e.n} — {Math.floor(e.m)}
+          </div>
+        ))}
+      </div>
+
+      {/* Speed leaderboard */}
+      <div style={{ position: "absolute", top: 14, left: 10, color: "rgba(255,255,255,0.35)", fontSize: 10, lineHeight: 1.9, pointerEvents: "none" }}>
+        <div style={{ color: "rgba(255,255,255,0.15)", fontSize: 8, letterSpacing: "0.1em", marginBottom: 2 }}>TOP SPEED</div>
+        {speedLb.map((e, i) => (
+          <div key={i} style={{ color: e.p ? "#63e6be" : "rgba(255,255,255,0.3)" }}>
+            {i + 1}. {e.n} — {Math.floor(e.v)}
           </div>
         ))}
       </div>

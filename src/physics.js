@@ -10,6 +10,9 @@ export function updatePhysics(S, dt, W, H, cfg, setDead) {
   const P = S.p;
   let playerDied = false;
 
+  // Save velocity before physics to compute acceleration
+  const prevVx = P.vx, prevVy = P.vy;
+
   const wells = [];
   if (P.alive) wells.push(P);
   for (const a of S.ais) if (a.alive) wells.push(a);
@@ -284,6 +287,9 @@ export function updatePhysics(S, dt, W, H, cfg, setDead) {
     const p = S.fx[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
     if (p.life <= 0) S.fx.splice(i, 1);
   }
+
+  // Acceleration magnitude this tick
+  P.accel = Math.sqrt((P.vx - prevVx) ** 2 + (P.vy - prevVy) ** 2) / dt;
 
   return playerDied;
 }
