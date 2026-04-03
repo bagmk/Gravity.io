@@ -1,0 +1,114 @@
+import { useState } from "react";
+import { DEFAULTS } from "./constants.js";
+import { useGameLoop } from "./useGameLoop.js";
+
+// Log scale: pos 50 = default, 0 ≈ 0, 100 = default * ~1000
+const logVal = (pos, def) => pos === 0 ? 0 : def * Math.pow(10, (pos - 50) * 0.06);
+
+const fmtVal = (v) => {
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + "k";
+  if (v >= 1) return Math.round(v).toString();
+  return v.toFixed(3);
+};
+
+export default function GravityIO() {
+  const [score, setScore] = useState(0);
+  const [dead, setDead] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [lb, setLb] = useState([]);
+  const [cfg, setCfg] = useState({
+    drag: 50, thrust: 50, foodG: 50,
+    wellG: 50, bhMass: 50, foodCount: 50,
+  });
+
+  const { canvasRef, init } = useGameLoop({
+    started, cfg, logVal, DEFAULTS, setScore, setDead, setLb,
+  });
+
+  const sliderRow = (label, key, def) => {
+    const val = logVal(cfg[key], def);
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
+        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, width: 72, textAlign: "right", flexShrink: 0 }}>{label}</span>
+        <input type="range" min={1} max={100} value={cfg[key]}
+          onChange={(e) => setCfg(c => ({ ...c, [key]: Number(e.target.value) }))}
+          style={{ flex: 1, height: 3, appearance: "none", WebkitAppearance: "none",
+            background: `linear-gradient(to right, rgba(132,94,247,0.4) ${cfg[key]}%, rgba(255,255,255,0.08) ${cfg[key]}%)`,
+            borderRadius: 2, outline: "none", cursor: "pointer", accentColor: "#845ef7" }} />
+        <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 9, width: 48, textAlign: "left", fontVariantNumeric: "tabular-nums" }}>{fmtVal(val)}</span>
+      </div>
+    );
+  };
+
+  if (!started) {
+    return (
+      <div style={{ width: "100vw", height: "100vh", background: "#060610", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace", color: "white", gap: 16, userSelect: "none", padding: "0 24px", boxSizing: "border-box" }}>
+        <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;800&display=swap" rel="stylesheet" />
+        <div style={{ fontSize: 40, fontWeight: 800 }}>
+          <span style={{ color: "#845ef7" }}>GRAVITY</span><span style={{ opacity: 0.35 }}>.io</span>
+        </div>
+        <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, textAlign: "center", lineHeight: 2, maxWidth: 300 }}>
+          마우스 = 추력 · 중력이 모든 것을 끌어당긴다<br />
+          <span style={{ color: "rgba(160,100,255,0.5)" }}>⬤ 블랙홀</span> 주변 = 고위험 고보상<br />
+          <span style={{ fontSize: 9, opacity: 0.6 }}>Space/Shift: 부스트</span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", maxWidth: 320, marginTop: 4 }}>
+          <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 9, letterSpacing: "0.1em", marginBottom: 2 }}>PARAMETERS</div>
+          {sliderRow("마찰", "drag", DEFAULTS.drag)}
+          {sliderRow("추력", "thrust", DEFAULTS.thrust)}
+          {sliderRow("먹이 인력", "foodG", DEFAULTS.foodG)}
+          {sliderRow("웰 중력", "wellG", DEFAULTS.wellG)}
+          {sliderRow("블랙홀", "bhMass", DEFAULTS.bhMass)}
+          {sliderRow("먹이 수", "foodCount", DEFAULTS.foodCount)}
+        </div>
+        <button onClick={() => setStarted(true)}
+          style={{ background: "rgba(132,94,247,0.2)", border: "1px solid rgba(132,94,247,0.4)", color: "#b197fc", padding: "12px 36px", borderRadius: 8, fontSize: 15, fontFamily: "inherit", fontWeight: 600, cursor: "pointer", letterSpacing: "0.08em", marginTop: 8 }}>
+          START
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ width: "100vw", height: "100vh", background: "#060610", position: "relative", overflow: "hidden", fontFamily: "'JetBrains Mono', monospace", cursor: "crosshair", userSelect: "none" }}>
+      <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;800&display=swap" rel="stylesheet" />
+      <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }} />
+
+      {/* Score */}
+      <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", textAlign: "center", pointerEvents: "none" }}>
+        <span style={{ fontSize: 26, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{score}</span>
+        <span style={{ marginLeft: 5, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>MASS</span>
+      </div>
+
+      {/* Leaderboard */}
+      <div style={{ position: "absolute", top: 14, right: 10, color: "rgba(255,255,255,0.35)", fontSize: 10, lineHeight: 1.9, pointerEvents: "none" }}>
+        {lb.map((e, i) => (
+          <div key={i} style={{ color: e.p ? "#845ef7" : "rgba(255,255,255,0.3)" }}>
+            {i + 1}. {e.n} — {Math.floor(e.m)}
+          </div>
+        ))}
+      </div>
+
+      {/* Back to start */}
+      <button
+        onClick={() => { setStarted(false); setDead(false); }}
+        style={{ position: "absolute", bottom: 12, left: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.3)", padding: "5px 10px", borderRadius: 4, fontSize: 9, fontFamily: "inherit", cursor: "pointer", letterSpacing: "0.05em" }}
+        onMouseEnter={(e) => { e.target.style.color = "rgba(255,255,255,0.7)"; e.target.style.background = "rgba(255,255,255,0.1)"; }}
+        onMouseLeave={(e) => { e.target.style.color = "rgba(255,255,255,0.3)"; e.target.style.background = "rgba(255,255,255,0.04)"; }}
+      >처음으로</button>
+
+      {/* Death screen */}
+      {dead && (
+        <div style={{ position: "absolute", inset: 0, background: "rgba(6,6,16,0.9)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
+          <div style={{ fontSize: 30, fontWeight: 800, color: "#ff6b6b" }}>ABSORBED</div>
+          <div style={{ fontSize: 15, color: "rgba(255,255,255,0.5)" }}>최종 질량: <span style={{ color: "white", fontWeight: 600 }}>{score}</span></div>
+          <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+            <button onClick={init} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", padding: "10px 28px", borderRadius: 6, fontSize: 13, fontFamily: "inherit", fontWeight: 600, cursor: "pointer" }}>다시하기</button>
+            <button onClick={() => { setStarted(false); setDead(false); }} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)", padding: "10px 28px", borderRadius: 6, fontSize: 13, fontFamily: "inherit", fontWeight: 600, cursor: "pointer" }}>처음으로</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
