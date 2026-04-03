@@ -17,6 +17,7 @@ const fmtVal = (v) => {
 
 export default function GravityIO() {
   const [score, setScore] = useState(0);
+  const [speed, setSpeed] = useState(0);
   const [momentum, setMomentum] = useState(0);
   const [dead, setDead] = useState(false);
   const [started, setStarted] = useState(false);
@@ -29,7 +30,7 @@ export default function GravityIO() {
   });
 
   const { canvasRef, stRef, init } = useGameLoop({
-    started, cfg, logVal, DEFAULTS, setScore, setMomentum, setDead, setEndStats, setLb, setSpeedLb,
+    started, cfg, logVal, DEFAULTS, setScore, setSpeed, setMomentum, setDead, setEndStats, setLb, setSpeedLb,
   });
 
   // Mobile boost button handlers — directly toggle "Space" key in game state
@@ -90,15 +91,19 @@ export default function GravityIO() {
       <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;800&display=swap" rel="stylesheet" />
       <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }} />
 
-      {/* Center HUD: mass + momentum */}
-      <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", textAlign: "center", pointerEvents: "none" }}>
+      {/* Center HUD: mass / speed / momentum */}
+      <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", textAlign: "center", pointerEvents: "none", whiteSpace: "nowrap" }}>
         <div>
           <span style={{ fontSize: 26, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{score}</span>
-          <span style={{ marginLeft: 5, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>MASS</span>
+          <span style={{ marginLeft: 4, fontSize: 9, color: "rgba(255,255,255,0.25)" }}>kg</span>
+        </div>
+        <div style={{ marginTop: 1 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "rgba(105,219,124,0.85)" }}>{fmtVal(speed)}</span>
+          <span style={{ marginLeft: 3, fontSize: 9, color: "rgba(105,219,124,0.35)" }}>m/s</span>
         </div>
         <div style={{ marginTop: 1 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(99,230,190,0.8)" }}>{fmtVal(momentum)}</span>
-          <span style={{ marginLeft: 4, fontSize: 9, color: "rgba(99,230,190,0.35)" }}>p = mv</span>
+          <span style={{ marginLeft: 3, fontSize: 9, color: "rgba(99,230,190,0.3)" }}>kg·m/s</span>
         </div>
       </div>
 

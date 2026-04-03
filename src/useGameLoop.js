@@ -7,7 +7,7 @@ import { render } from "./renderer.js";
 import { initFeatures } from "./features.js";
 import { initStats } from "./statsTracker.jsx";
 
-export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setMomentum, setDead, setEndStats, setLb, setSpeedLb }) {
+export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setSpeed, setMomentum, setDead, setEndStats, setLb, setSpeedLb }) {
   const canvasRef = useRef(null);
   const stRef = useRef(null);
   const afRef = useRef(null);
@@ -112,6 +112,7 @@ export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setMomen
       if (S.p.alive) {
         const spd = Math.sqrt(S.p.vx ** 2 + S.p.vy ** 2);
         setScore(Math.floor(S.p.mass));
+        setSpeed(Math.floor(spd));
         setMomentum(Math.floor(spd * S.p.mass));
       }
 
