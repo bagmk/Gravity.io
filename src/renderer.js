@@ -324,6 +324,23 @@ function drawHUD(ctx, S, P, W, H, zoom, cfg, vx, vy, wells) {
     if (!a.alive) continue;
     ctx.fillStyle = a.palette[0] + "80"; ctx.beginPath(); ctx.arc(mmx + a.x * sc, mmy + a.y * sc, Math.max(1.5, mr(a.mass) * sc * 2), 0, Math.PI * 2); ctx.fill();
   }
+  // Comets on minimap
+  if (S.comets) {
+    for (const c of S.comets) {
+      ctx.fillStyle = `hsla(${c.hue}, 90%, 70%, 0.85)`;
+      ctx.beginPath(); ctx.arc(mmx + c.x * sc, mmy + c.y * sc, 3, 0, Math.PI * 2); ctx.fill();
+      // tiny trail on minimap
+      if (c.trail.length > 1) {
+        ctx.strokeStyle = `hsla(${c.hue}, 80%, 60%, 0.4)`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(mmx + c.trail[0].x * sc, mmy + c.trail[0].y * sc);
+        for (let ti = 1; ti < c.trail.length; ti += 3)
+          ctx.lineTo(mmx + c.trail[ti].x * sc, mmy + c.trail[ti].y * sc);
+        ctx.stroke();
+      }
+    }
+  }
   const vw = W / zoom * sc, vh = H / zoom * sc;
   ctx.strokeStyle = "rgba(255,255,255,0.15)";
   ctx.strokeRect(mmx + S.cam.x * sc - vw / 2, mmy + S.cam.y * sc - vh / 2, vw, vh);

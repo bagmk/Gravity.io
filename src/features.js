@@ -1,4 +1,4 @@
-import { MAP_W, MAP_H, SLINGSHOT_R, ORBIT_TIME_REQ } from "./constants.js";
+import { MAP_W, MAP_H, SLINGSHOT_R, ORBIT_TIME_REQ, BH_KILL_R } from "./constants.js";
 import { mr, uid, wrapDx, wrapDy, di, wrapPos } from "./utils.js";
 
 export function initFeatures(S) {
@@ -102,25 +102,66 @@ function updateOrbit(S, P, dt) {
 }
 
 // ─── COMETS ───────────────────────────────────────────────────────────────────
+const COMET_BH_G   = 1800;   // BH attraction strength on comets
+const COMET_WELL_G = 400;    // well attraction (weak)
+
 function updateComets(S, P, dt) {
+  // Spawn timer — also respawns after comet removed
   S.cometTimer -= dt;
-  if (S.cometTimer <= 0) {
-    S.cometTimer = 45 + Math.random() * 45;
+  if (S.cometTimer <= 0 && S.comets.length === 0) {
+    S.cometTimer = 0;
     spawnComet(S);
   }
 
   for (let i = S.comets.length - 1; i >= 0; i--) {
     const c = S.comets[i];
-    c.trail.push({ x: c.x, y: c.y });
-    if (c.trail.length > 28) c.trail.shift();
 
+    // ── Gravity: black holes ──────────────────────────────────────────────────
+    for (const bh of S.bhs) {
+      const dx   = wrapDx(c.x, bh.x);
+      const dy   = wrapDy(c.y, bh.y);
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 1) continue;
+      const F = COMET_BH_G / (Math.max(dist, 80) ** 2);
+      c.vx += (dx / dist) * F * dt;
+      c.vy += (dy / dist) * F * dt;
+      // Sucked into BH
+      if (dist < BH_KILL_R * 1.2) {
+        S.comets.splice(i, 1);
+        S.cometTimer = 15 + Math.random() * 15; // respawn soon
+        continue;
+      }
+    }
+    if (i >= S.comets.length) continue; // was removed above
+
+    // ── Gravity: wells ───────────────────────────────────────────────────────
+    const wells = S.p.alive ? [S.p, ...S.ais.filter(a => a.alive)] : S.ais.filter(a => a.alive);
+    for (const w of wells) {
+      const dx   = wrapDx(c.x, w.x);
+      const dy   = wrapDy(c.y, w.y);
+      const dSq  = dx * dx + dy * dy;
+      if (dSq < 4 || dSq > 600 * 600) continue;
+      const dist = Math.sqrt(dSq);
+      const F    = COMET_WELL_G * w.mass / dSq;
+      c.vx += (dx / dist) * F * dt;
+      c.vy += (dy / dist) * F * dt;
+    }
+
+    // ── Record trail & move ──────────────────────────────────────────────────
+    c.trail.push({ x: c.x, y: c.y });
+    if (c.trail.length > 32) c.trail.shift();
     c.x += c.vx * dt;
     c.y += c.vy * dt;
     wrapPos(c);
 
     c.life -= dt;
-    if (c.life <= 0) { S.comets.splice(i, 1); continue; }
+    if (c.life <= 0) {
+      S.comets.splice(i, 1);
+      S.cometTimer = 20 + Math.random() * 20; // respawn after expiry
+      continue;
+    }
 
+    // ── Player absorbs comet ─────────────────────────────────────────────────
     if (P.alive && di(P, c) < mr(P.mass) + mr(c.mass) * 0.6) {
       const gained = Math.floor(c.mass);
       P.mass += c.mass;
@@ -135,6 +176,7 @@ function updateComets(S, P, dt) {
       S.cometAbsorbed = { life: 2.5, mass: gained };
       S.stats.cometsAbsorbed++;
       S.comets.splice(i, 1);
+      S.cometTimer = 20 + Math.random() * 20; // respawn after absorption
     }
   }
 
