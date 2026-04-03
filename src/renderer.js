@@ -3,7 +3,8 @@ import { mr, wrapDx, wrapDy, di } from "./utils.js";
 
 export function render(ctx, S, W, H, cfg) {
   const P = S.p;
-  const zoom = Math.max(0.25, 1 / (1 + P.mass * 0.004));
+  // sqrt-based zoom: view expands as player grows, player stays small on screen
+  const zoom = Math.max(0.05, 1 / (1 + Math.sqrt(P.mass) * 0.15));
 
   // Visual position helpers: wrap entity to be closest to camera
   const vx = (x) => { let d = x - S.cam.x; if (d > MAP_W / 2) d -= MAP_W; if (d < -MAP_W / 2) d += MAP_W; return S.cam.x + d; };

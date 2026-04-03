@@ -1,8 +1,8 @@
-export const MAP_W = 5000;
-export const MAP_H = 5000;
-export const FOOD_COUNT = 1400;
-export const AI_COUNT = 8;
-export const BH_COUNT = 4;
+export const MAP_W = 10000;
+export const MAP_H = 10000;
+export const FOOD_COUNT = 3000;
+export const AI_COUNT = 12;
+export const BH_COUNT = 6;
 export const INITIAL_MASS = 12;
 export const THRUST = 320;
 export const AI_THRUST = 280;
@@ -17,7 +17,7 @@ export const ABSORB_RATIO = 0.75;
 export const BOOST_MULT = 3.5;
 export const BOOST_COST = 0.4;
 export const DECAY_RATE = 0.001;
-export const DRAG = 1.2;
+export const DRAG = 0;
 
 export const PALETTES = [
   ["#ff6b6b","#ff8787"],["#66d9e8","#3bc9db"],["#ffd43b","#fcc419"],
@@ -29,6 +29,6 @@ export const PALETTES = [
 export const NAMES = ["Nova","Pulsar","Quasar","Nebula","Photon","Muon","Gluon","Boson","Lepton","Hadron"];
 
 export const DEFAULTS = {
-  drag: 1.2, thrust: 320, foodG: 30,
-  wellG: 3000, bhMass: 300, foodCount: 1400,
+  drag: 1.2, thrust: 320, foodG: 5000,
+  wellG: 50000, bhMass: 300, foodCount: 3000,
 };

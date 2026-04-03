@@ -5,7 +5,7 @@ import { spawnFood, spawnBH, spawnAI } from "./spawners.js";
 import { updatePhysics } from "./physics.js";
 import { render } from "./renderer.js";
 
-export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setDead, setLb, setSpeedLb }) {
+export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setMomentum, setDead, setLb, setSpeedLb }) {
   const canvasRef = useRef(null);
   const stRef = useRef(null);
   const afRef = useRef(null);
@@ -101,7 +101,11 @@ export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setDead,
         if (spd > (a.topSpeed || 0)) a.topSpeed = spd;
       }
 
-      if (S.p.alive) setScore(Math.floor(S.p.mass));
+      if (S.p.alive) {
+        const spd = Math.sqrt(S.p.vx ** 2 + S.p.vy ** 2);
+        setScore(Math.floor(S.p.mass));
+        setMomentum(Math.floor(spd * S.p.mass));
+      }
 
       lbT -= dt;
       if (lbT <= 0) {

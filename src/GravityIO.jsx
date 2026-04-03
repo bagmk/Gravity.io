@@ -16,17 +16,18 @@ const fmtVal = (v) => {
 
 export default function GravityIO() {
   const [score, setScore] = useState(0);
+  const [momentum, setMomentum] = useState(0);
   const [dead, setDead] = useState(false);
   const [started, setStarted] = useState(false);
   const [lb, setLb] = useState([]);
   const [speedLb, setSpeedLb] = useState([]);
   const [cfg, setCfg] = useState({
-    drag: 50, thrust: 50, foodG: 50,
-    wellG: 50, bhMass: 50, foodCount: 50,
+    drag: 0,   // 마찰 없음
+    thrust: 50, foodG: 50, wellG: 50, bhMass: 50, foodCount: 50,
   });
 
   const { canvasRef, stRef, init } = useGameLoop({
-    started, cfg, logVal, DEFAULTS, setScore, setDead, setLb, setSpeedLb,
+    started, cfg, logVal, DEFAULTS, setScore, setMomentum, setDead, setLb, setSpeedLb,
   });
 
   // Mobile boost button handlers — directly toggle "Space" key in game state
@@ -60,9 +61,10 @@ export default function GravityIO() {
           <span style={{ color: "#845ef7" }}>GRAVITY</span><span style={{ opacity: 0.35 }}>.io</span>
         </div>
         <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, textAlign: "center", lineHeight: 2, maxWidth: 300 }}>
-          마우스 = 추력 · 중력이 모든 것을 끌어당긴다<br />
+          마우스 방향으로 추력 · 중력이 모든 것을 끌어당긴다<br />
           <span style={{ color: "rgba(160,100,255,0.5)" }}>⬤ 블랙홀</span> 주변 = 고위험 고보상<br />
-          <span style={{ fontSize: 9, opacity: 0.6 }}>Space/Shift: 부스트</span>
+          <span style={{ color: "rgba(255,200,80,0.6)", fontSize: 10 }}>Space / Shift</span>
+          <span style={{ fontSize: 10, opacity: 0.5 }}> = 부스트 (질량 소모)</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", maxWidth: 320, marginTop: 4 }}>
           <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 9, letterSpacing: "0.1em", marginBottom: 2 }}>PARAMETERS</div>
@@ -86,10 +88,16 @@ export default function GravityIO() {
       <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;800&display=swap" rel="stylesheet" />
       <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }} />
 
-      {/* Score */}
+      {/* Center HUD: mass + momentum */}
       <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", textAlign: "center", pointerEvents: "none" }}>
-        <span style={{ fontSize: 26, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{score}</span>
-        <span style={{ marginLeft: 5, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>MASS</span>
+        <div>
+          <span style={{ fontSize: 26, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{score}</span>
+          <span style={{ marginLeft: 5, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>MASS</span>
+        </div>
+        <div style={{ marginTop: 1 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(99,230,190,0.8)" }}>{fmtVal(momentum)}</span>
+          <span style={{ marginLeft: 4, fontSize: 9, color: "rgba(99,230,190,0.35)" }}>p = mv</span>
+        </div>
       </div>
 
       {/* Mass leaderboard */}
