@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { DEFAULTS } from "./constants.js";
 import { useGameLoop } from "./useGameLoop.js";
+
+const isMobile = () => /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.matchMedia("(pointer: coarse)").matches;
 
 // Log scale: pos 50 = default, 0 ≈ 0, 100 = default * ~1000
 const logVal = (pos, def) => pos === 0 ? 0 : def * Math.pow(10, (pos - 50) * 0.06);
@@ -22,9 +24,17 @@ export default function GravityIO() {
     wellG: 50, bhMass: 50, foodCount: 50,
   });
 
-  const { canvasRef, init } = useGameLoop({
+  const { canvasRef, stRef, init } = useGameLoop({
     started, cfg, logVal, DEFAULTS, setScore, setDead, setLb,
   });
+
+  // Mobile boost button handlers — directly toggle "Space" key in game state
+  const onBoostStart = useCallback(() => {
+    if (stRef.current) stRef.current.keys["Space"] = true;
+  }, [stRef]);
+  const onBoostEnd = useCallback(() => {
+    if (stRef.current) stRef.current.keys["Space"] = false;
+  }, [stRef]);
 
   const sliderRow = (label, key, def) => {
     const val = logVal(cfg[key], def);
@@ -89,6 +99,26 @@ export default function GravityIO() {
           </div>
         ))}
       </div>
+
+      {/* Mobile boost button */}
+      {isMobile() && !dead && (
+        <button
+          onTouchStart={(e) => { e.preventDefault(); onBoostStart(); }}
+          onTouchEnd={(e) => { e.preventDefault(); onBoostEnd(); }}
+          onMouseDown={onBoostStart}
+          onMouseUp={onBoostEnd}
+          style={{
+            position: "absolute", bottom: 32, right: 24,
+            width: 72, height: 72, borderRadius: "50%",
+            background: "rgba(132,94,247,0.25)",
+            border: "2px solid rgba(132,94,247,0.5)",
+            color: "#b197fc", fontSize: 11, fontFamily: "inherit",
+            fontWeight: 600, cursor: "pointer", userSelect: "none",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            letterSpacing: "0.05em", touchAction: "none",
+          }}
+        >BOOST</button>
+      )}
 
       {/* Back to start */}
       <button

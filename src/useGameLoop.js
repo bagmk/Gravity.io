@@ -111,5 +111,5 @@ export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setDead,
     };
   }, [started, init, setScore, setDead, setLb]);
 
-  return { canvasRef, init };
+  return { canvasRef, stRef, init };
 }
