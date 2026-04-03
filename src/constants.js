@@ -32,3 +32,6 @@ export const DEFAULTS = {
   drag: 1.2, thrust: 320, foodG: 5000,
   wellG: 50000, bhMass: 300, foodCount: 3000,
 };
+
+export const SLINGSHOT_R    = 350;   // zone radius for slingshot detection
+export const ORBIT_TIME_REQ = 2.5;  // seconds to confirm orbit lock

@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { DEFAULTS } from "./constants.js";
 import { useGameLoop } from "./useGameLoop.js";
+import { MiniChart } from "./statsTracker.jsx";
 
 const isMobile = () => /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.matchMedia("(pointer: coarse)").matches;
 
@@ -21,13 +22,14 @@ export default function GravityIO() {
   const [started, setStarted] = useState(false);
   const [lb, setLb] = useState([]);
   const [speedLb, setSpeedLb] = useState([]);
+  const [endStats, setEndStats] = useState(null);
   const [cfg, setCfg] = useState({
     drag: 0,   // 마찰 없음
     thrust: 50, foodG: 50, wellG: 50, bhMass: 50, foodCount: 50,
   });
 
   const { canvasRef, stRef, init } = useGameLoop({
-    started, cfg, logVal, DEFAULTS, setScore, setMomentum, setDead, setLb, setSpeedLb,
+    started, cfg, logVal, DEFAULTS, setScore, setMomentum, setDead, setEndStats, setLb, setSpeedLb,
   });
 
   // Mobile boost button handlers — directly toggle "Space" key in game state
@@ -149,16 +151,82 @@ export default function GravityIO() {
       >처음으로</button>
 
       {/* Death screen */}
-      {dead && (
-        <div style={{ position: "absolute", inset: 0, background: "rgba(6,6,16,0.9)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
-          <div style={{ fontSize: 30, fontWeight: 800, color: "#ff6b6b" }}>ABSORBED</div>
-          <div style={{ fontSize: 15, color: "rgba(255,255,255,0.5)" }}>최종 질량: <span style={{ color: "white", fontWeight: 600 }}>{score}</span></div>
-          <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-            <button onClick={init} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", padding: "10px 28px", borderRadius: 6, fontSize: 13, fontFamily: "inherit", fontWeight: 600, cursor: "pointer" }}>다시하기</button>
-            <button onClick={() => { setStarted(false); setDead(false); }} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)", padding: "10px 28px", borderRadius: 6, fontSize: 13, fontFamily: "inherit", fontWeight: 600, cursor: "pointer" }}>처음으로</button>
-          </div>
-        </div>
+      {dead && endStats && (
+        <DeathScreen
+          stats={endStats.stats}
+          history={endStats.history}
+          onRetry={init}
+          onHome={() => { setStarted(false); setDead(false); }}
+        />
       )}
+    </div>
+  );
+}
+
+// ─── Death Screen ─────────────────────────────────────────────────────────────
+function fmt(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "k";
+  return Math.floor(n).toLocaleString();
+}
+function fmtTime(s) {
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+function DeathScreen({ stats, history, onRetry, onHome }) {
+  const spdData  = history.map(h => h.spd);
+  const massData = history.map(h => h.mass);
+  const momData  = history.map(h => h.momentum);
+
+  const statCards = [
+    { label: "생존 시간",      value: fmtTime(stats.survivalTime),           color: "#748ffc" },
+    { label: "최고 질량",      value: fmt(stats.peakMass),                   color: "#ffd43b" },
+    { label: "최고 속도",      value: fmt(stats.peakSpeed),                  color: "#69db7c" },
+    { label: "최고 모멘텀",    value: fmt(stats.peakMomentum),               color: "#63e6be" },
+    { label: "킬",             value: stats.kills,                           color: "#ff6b6b" },
+    { label: "혜성 흡수",      value: stats.cometsAbsorbed,                  color: "#63e6be" },
+    { label: "슬링샷 보너스",  value: fmt(stats.slingshotTotal) + " p",      color: "#ffd43b" },
+    { label: "궤도 시간",      value: fmtTime(stats.orbitTime),              color: "#b197fc" },
+  ];
+
+  return (
+    <div style={{
+      position: "absolute", inset: 0, background: "rgba(6,6,16,0.95)",
+      display: "flex", flexDirection: "column", alignItems: "center",
+      overflowY: "auto", fontFamily: "'JetBrains Mono', monospace", color: "white",
+      padding: "24px 20px", boxSizing: "border-box", gap: 20,
+    }}>
+      <div style={{ fontSize: 28, fontWeight: 800, color: "#ff6b6b", letterSpacing: "0.05em" }}>ABSORBED</div>
+
+      {/* Graphs */}
+      <div style={{ width: "100%", maxWidth: 480 }}>
+        <MiniChart data={momData}  color="#63e6be" label="모멘텀 (p = mv)" W={440} H={55} />
+        <MiniChart data={massData} color="#ffd43b" label="질량"             W={440} H={45} />
+        <MiniChart data={spdData}  color="#69db7c" label="속도"             W={440} H={45} />
+      </div>
+
+      {/* Stat cards */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "1fr 1fr",
+        gap: 8, width: "100%", maxWidth: 360,
+      }}>
+        {statCards.map(({ label, value, color }) => (
+          <div key={label} style={{
+            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)",
+            borderRadius: 6, padding: "8px 12px",
+          }}>
+            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em", marginBottom: 3 }}>{label}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Buttons */}
+      <div style={{ display: "flex", gap: 10 }}>
+        <button onClick={onRetry} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", padding: "10px 28px", borderRadius: 6, fontSize: 13, fontFamily: "inherit", fontWeight: 600, cursor: "pointer" }}>다시하기</button>
+        <button onClick={onHome}  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",  color: "rgba(255,255,255,0.4)", padding: "10px 28px", borderRadius: 6, fontSize: 13, fontFamily: "inherit", fontWeight: 600, cursor: "pointer" }}>처음으로</button>
+      </div>
     </div>
   );
 }

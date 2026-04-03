@@ -4,6 +4,8 @@ import {
 } from "./constants.js";
 import { mr, uid, wrapDx, wrapDy, di, wrapPos } from "./utils.js";
 import { spawnFood } from "./spawners.js";
+import { updateFeatures } from "./features.js";
+import { recordStats } from "./statsTracker.jsx";
 
 // Returns true if player died this tick
 export function updatePhysics(S, dt, W, H, cfg, setDead) {
@@ -249,6 +251,7 @@ export function updatePhysics(S, dt, W, H, cfg, setDead) {
   const killW = (v, k) => {
     k.mass += v.mass * 0.4;
     v.alive = false; v.respawn = 1 + Math.random() * 2;
+    if (k === P) S.stats.kills++;
     for (let i = 0; i < 10; i++) S.fx.push({ x: v.x, y: v.y, vx: (Math.random() - 0.5) * 250, vy: (Math.random() - 0.5) * 250, life: 0.7, color: v.palette[0] });
   };
   if (P.alive) {
@@ -279,8 +282,16 @@ export function updatePhysics(S, dt, W, H, cfg, setDead) {
   for (let i = 0; i < toSpawn; i++) S.foods.push(spawnFood());
   while (S.foods.length < cfg.foodCount * 0.7) S.foods.push(spawnFood());
 
-  // --- Mass decay ---
-  for (const w of wells) if (w.mass > INITIAL_MASS) w.mass -= w.mass * DECAY_RATE * dt;
+  // --- Mass decay (skip player while orbit-locked) ---
+  for (const w of wells) {
+    if (w.mass <= INITIAL_MASS) continue;
+    if (w === P && S.orbitState?.active) continue; // orbit bonus: no decay
+    w.mass -= w.mass * DECAY_RATE * dt;
+  }
+
+  // --- Features (slingshot, orbit, comets) ---
+  updateFeatures(S, P, dt);
+  recordStats(S, P, dt);
 
   // --- FX particles ---
   for (let i = S.fx.length - 1; i >= 0; i--) {

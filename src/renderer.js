@@ -1,4 +1,4 @@
-import { MAP_W, MAP_H, BH_LJ_EQ, BH_KILL_R } from "./constants.js";
+import { MAP_W, MAP_H, BH_LJ_EQ, BH_KILL_R, ORBIT_TIME_REQ } from "./constants.js";
 import { mr, wrapDx, wrapDy, di } from "./utils.js";
 
 export function render(ctx, S, W, H, cfg) {
@@ -95,6 +95,61 @@ export function render(ctx, S, W, H, cfg) {
       ctx.restore();
     }
     S._attractor = { src: attractor, isBH: attractorIsBH, pull: maxPull };
+  }
+
+  // ── Comets with trails ──────────────────────────────────────────────────────
+  if (S.comets) {
+    for (const c of S.comets) {
+      // Trail
+      for (let i = 1; i < c.trail.length; i++) {
+        const alpha = (i / c.trail.length) * 0.55;
+        const tr    = mr(c.mass) * (i / c.trail.length) * 0.7;
+        ctx.beginPath();
+        ctx.arc(vx(c.trail[i].x), vy(c.trail[i].y), Math.max(tr, 0.5), 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${c.hue}, 85%, 65%, ${alpha})`;
+        ctx.fill();
+      }
+      // Body
+      const cx2 = vx(c.x), cy2 = vy(c.y);
+      const cr  = mr(c.mass);
+      const cg  = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, cr * 1.5);
+      cg.addColorStop(0,   `hsl(${c.hue}, 100%, 95%)`);
+      cg.addColorStop(0.4, `hsl(${c.hue}, 90%, 70%)`);
+      cg.addColorStop(1,   `hsla(${c.hue}, 80%, 55%, 0)`);
+      ctx.beginPath(); ctx.arc(cx2, cy2, cr * 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = cg; ctx.fill();
+      // Mass label
+      const cfs = Math.max(9 / zoom, Math.min(cr * 0.6, 18 / zoom));
+      ctx.font = `600 ${cfs}px 'JetBrains Mono', monospace`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.fillText(`☄ ${Math.floor(c.mass)}`, cx2, cy2);
+    }
+  }
+
+  // ── Orbit ring around player ────────────────────────────────────────────────
+  if (S.orbitState?.active && P.alive) {
+    const px2   = vx(P.x), py2 = vy(P.y);
+    const or    = mr(P.mass) * 1.7;
+    const prog  = Math.min((S.orbitState.time - ORBIT_TIME_REQ) * 0.4, 1);
+    ctx.beginPath(); ctx.arc(px2, py2, or, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(99, 230, 190, ${0.3 + prog * 0.4})`;
+    ctx.lineWidth   = 2 / zoom;
+    ctx.setLineDash([5 / zoom, 7 / zoom]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ── Slingshot bonus popups (world space) ────────────────────────────────────
+  if (S.slingshotBonuses) {
+    for (const b of S.slingshotBonuses) {
+      const alpha = Math.min(b.life, 1);
+      const fs    = 13 / zoom;
+      ctx.font    = `700 ${fs}px 'JetBrains Mono', monospace`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = `rgba(255, 212, 59, ${alpha})`;
+      ctx.fillText(`⚡ +${b.value.toLocaleString()} p`, vx(b.x), vy(b.y));
+    }
   }
 
   ctx.restore();
@@ -272,6 +327,34 @@ function drawHUD(ctx, S, P, W, H, zoom, cfg, vx, vy, wells) {
   const vw = W / zoom * sc, vh = H / zoom * sc;
   ctx.strokeStyle = "rgba(255,255,255,0.15)";
   ctx.strokeRect(mmx + S.cam.x * sc - vw / 2, mmy + S.cam.y * sc - vh / 2, vw, vh);
+
+  // ── Orbit locked indicator ────────────────────────────────────────────────
+  if (S.orbitState?.active) {
+    ctx.fillStyle = "rgba(99, 230, 190, 0.7)";
+    ctx.font = "300 9px 'JetBrains Mono', monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("◎ ORBIT LOCKED  +momentum", W / 2, H - 56);
+  }
+
+  // ── Comet incoming alert ──────────────────────────────────────────────────
+  if (S.cometAlert) {
+    const a = Math.min(S.cometAlert.life, 1);
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.font = "700 14px 'JetBrains Mono', monospace";
+    ctx.fillStyle = "#63e6be"; ctx.textAlign = "center";
+    ctx.fillText("☄  COMET INCOMING", W / 2, 56);
+    ctx.restore();
+  }
+
+  // ── Comet absorbed notification ───────────────────────────────────────────
+  if (S.cometAbsorbed) {
+    const a = Math.min(S.cometAbsorbed.life, 1);
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.font = "700 18px 'JetBrains Mono', monospace";
+    ctx.fillStyle = "#63e6be"; ctx.textAlign = "center";
+    ctx.fillText(`☄  +${S.cometAbsorbed.mass} MASS`, W / 2, H / 2 - 60);
+    ctx.restore();
+  }
 }
 
 function drawArrow(ctx, targetScreenX, targetScreenY, W, H, color) {

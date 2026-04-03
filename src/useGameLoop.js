@@ -4,8 +4,10 @@ import { wrapPos, wrapDx, wrapDy } from "./utils.js";
 import { spawnFood, spawnBH, spawnAI } from "./spawners.js";
 import { updatePhysics } from "./physics.js";
 import { render } from "./renderer.js";
+import { initFeatures } from "./features.js";
+import { initStats } from "./statsTracker.jsx";
 
-export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setMomentum, setDead, setLb, setSpeedLb }) {
+export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setMomentum, setDead, setEndStats, setLb, setSpeedLb }) {
   const canvasRef = useRef(null);
   const stRef = useRef(null);
   const afRef = useRef(null);
@@ -33,6 +35,9 @@ export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setMomen
       cam: { x: MAP_W / 2, y: MAP_H / 2 },
       mouse: { x: 0, y: 0 }, keys: {}, fx: [], t: 0,
     };
+
+    initFeatures(stRef.current);
+    initStats(stRef.current);
 
     setDead(false);
     setScore(0);
@@ -80,7 +85,10 @@ export function useGameLoop({ started, cfg, logVal, DEFAULTS, setScore, setMomen
       S.t += dt;
 
       const playerDied = updatePhysics(S, dt, W, H, cfgRef.current, setDead);
-      if (playerDied) setDead(true);
+      if (playerDied) {
+        setDead(true);
+        setEndStats({ stats: { ...S.stats }, history: [...S.history] });
+      }
 
       // --- Adaptive camera follow (dt-based, snaps harder when far away) ---
       if (S.p.alive) {
