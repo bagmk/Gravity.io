@@ -282,10 +282,9 @@ export function updatePhysics(S, dt, W, H, cfg, setDead) {
   for (let i = 0; i < toSpawn; i++) S.foods.push(spawnFood());
   while (S.foods.length < cfg.foodCount * 0.7) S.foods.push(spawnFood());
 
-  // --- Mass decay (skip player while orbit-locked) ---
+  // --- Mass decay (orbit gives score bonus; mass still decays as risk) ---
   for (const w of wells) {
     if (w.mass <= INITIAL_MASS) continue;
-    if (w === P && S.orbitState?.active) continue; // orbit bonus: no decay
     w.mass -= w.mass * DECAY_RATE * dt;
   }
 

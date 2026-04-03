@@ -2,13 +2,19 @@ import { MAP_W, MAP_H, SLINGSHOT_R, ORBIT_TIME_REQ, BH_KILL_R } from "./constant
 import { mr, uid, wrapDx, wrapDy, di, wrapPos } from "./utils.js";
 
 export function initFeatures(S) {
-  S.comets       = [];
-  S.cometTimer   = 30 + Math.random() * 20;
-  S.cometAlert   = null;
+  S.comets        = [];
+  S.cometTimer    = 30 + Math.random() * 20;
+  S.cometAlert    = null;
   S.cometAbsorbed = null;
-  S.bhProx       = {};           // slingshot proximity records per BH id
-  S.slingshotBonuses = [];       // floating bonus popups
-  S.orbitState   = { bhId: null, time: 0, active: false, lastLz: 0 };
+  S.bhProx        = {};
+  S.bonusPopups   = [];          // unified floating bonus popups
+  S.orbitState    = {
+    bhId: null, time: 0, active: false, lastLz: 0,
+    combo: 0, angleAcc: 0,       // combo tracking
+    broken: null,                // { life, combo } for "BROKEN" message
+    sessionBonus: 0,             // total orbit bonus this session
+  };
+  S.slingshotSessionBonus = 0;
 }
 
 // ─── SLINGSHOT ────────────────────────────────────────────────────────────────
@@ -42,46 +48,56 @@ function updateSlingshot(S, P, dt) {
         const closeness = Math.max(0, 1 - rec.minDist / SLINGSHOT_R);
         const bonus     = Math.floor(gain * P.mass * (0.3 + closeness * 0.7) * 0.08);
         if (bonus > 10) {
-          S.slingshotBonuses.push({ x: P.x, y: P.y, value: bonus, life: 2.5 });
+          S.bonusPopups.push({ x: P.x, y: P.y, value: bonus, label: `⚡ +${fmt(bonus)} p`, color: "#ffd43b", life: 2.5 });
           S.stats.slingshotTotal += bonus;
+          S.slingshotSessionBonus += bonus;
         }
       }
       rec.minDist = Infinity;
     }
   }
-
-  // Age bonus popups (world-space Y drift upward)
-  for (let i = S.slingshotBonuses.length - 1; i >= 0; i--) {
-    const b = S.slingshotBonuses[i];
-    b.y   -= 40 * dt;
-    b.life -= dt;
-    if (b.life <= 0) S.slingshotBonuses.splice(i, 1);
-  }
 }
 
 // ─── ORBIT ────────────────────────────────────────────────────────────────────
+const TWO_PI = Math.PI * 2;
+
 function updateOrbit(S, P, dt) {
-  if (!P.alive) { S.orbitState.active = false; return; }
   const OS = S.orbitState;
 
+  // Age "broken" message
+  if (OS.broken) {
+    OS.broken.life -= dt;
+    if (OS.broken.life <= 0) OS.broken = null;
+  }
+
+  if (!P.alive) { OS.active = false; return; }
+
   let foundOrbit = false;
+  let orbitVt = 0;
+
   for (const bh of S.bhs) {
-    const rx   = wrapDx(bh.x, P.x);   // P - BH  (vector BH→P)
+    const rx   = wrapDx(bh.x, P.x);
     const ry   = wrapDy(bh.y, P.y);
     const dist = Math.sqrt(rx * rx + ry * ry);
     if (dist < 90 || dist > 800) continue;
 
-    const Lz = rx * P.vy - ry * P.vx;          // angular momentum z
-    const vr = (rx * P.vx + ry * P.vy) / dist; // radial speed
-    const vt = Lz / dist;                       // tangential speed
+    const Lz = rx * P.vy - ry * P.vx;
+    const vr = (rx * P.vx + ry * P.vy) / dist;
+    const vt = Lz / dist;
 
     if (Math.abs(vt) > 60 && Math.abs(vt) > Math.abs(vr) * 1.5) {
-      if (OS.bhId === bh.id && Math.sign(Lz) === Math.sign(OS.lastLz || Lz)) {
+      const sameDir = OS.bhId === bh.id && Math.sign(Lz) === Math.sign(OS.lastLz || Lz);
+      if (sameDir) {
         OS.time += dt;
+        // Accumulate angle: ω = Lz / dist²
+        OS.angleAcc += Math.abs(Lz) / (dist * dist) * dt;
       } else {
-        OS.bhId = bh.id; OS.time = 0;
+        // Direction changed or new BH → break combo
+        if (OS.combo > 0) breakCombo(S, OS, P);
+        OS.bhId = bh.id; OS.time = 0; OS.angleAcc = 0;
       }
       OS.lastLz = Lz;
+      orbitVt   = vt;
       foundOrbit = true;
       break;
     }
@@ -89,16 +105,55 @@ function updateOrbit(S, P, dt) {
 
   if (!foundOrbit) {
     OS.time = Math.max(0, OS.time - dt * 2);
-    if (OS.time === 0) { OS.bhId = null; OS.lastLz = 0; }
+    if (OS.time === 0 && OS.active) {
+      breakCombo(S, OS, P);
+      OS.bhId = null; OS.lastLz = 0; OS.angleAcc = 0;
+    }
   }
 
   const wasActive = OS.active;
   OS.active = OS.time >= ORBIT_TIME_REQ;
+  if (OS.active) S.stats.orbitTime += dt;
 
-  if (OS.active) {
-    S.stats.orbitTime += dt;
-    if (!wasActive) S.stats.orbitCount++;
+  // ── Completed orbit detection (angle accumulated ≥ 2π) ───────────────────
+  if (OS.active && OS.angleAcc >= TWO_PI) {
+    OS.angleAcc -= TWO_PI;
+    OS.combo++;
+    S.stats.orbitRevolves++;
+
+    const multiplier = Math.pow(1.5, OS.combo - 1);
+    const bonus      = Math.floor(P.mass * Math.abs(orbitVt) * multiplier * 0.12);
+    OS.sessionBonus += bonus;
+    S.stats.orbitBonusTotal += bonus;
+
+    S.bonusPopups.push({
+      x: P.x, y: P.y - mr(P.mass) * 1.5,
+      value: bonus,
+      label: `◎ ×${OS.combo}  +${fmt(bonus)} p`,
+      color: comboColor(OS.combo),
+      life: 2.8,
+    });
   }
+}
+
+function breakCombo(S, OS, P) {
+  if (OS.combo === 0) return;
+  OS.broken = { life: 2, combo: OS.combo, bonus: OS.sessionBonus };
+  OS.combo  = 0;
+  OS.sessionBonus = 0;
+}
+
+function comboColor(n) {
+  if (n >= 8) return "#ff6b6b";
+  if (n >= 5) return "#ffd43b";
+  if (n >= 3) return "#b197fc";
+  return "#63e6be";
+}
+
+function fmt(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "k";
+  return n.toLocaleString();
 }
 
 // ─── COMETS ───────────────────────────────────────────────────────────────────
@@ -214,4 +269,12 @@ export function updateFeatures(S, P, dt) {
   updateSlingshot(S, P, dt);
   updateOrbit(S, P, dt);
   updateComets(S, P, dt);
+
+  // Age unified bonus popups
+  for (let i = S.bonusPopups.length - 1; i >= 0; i--) {
+    const b = S.bonusPopups[i];
+    b.y   -= 45 * dt;
+    b.life -= dt;
+    if (b.life <= 0) S.bonusPopups.splice(i, 1);
+  }
 }

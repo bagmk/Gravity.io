@@ -169,6 +169,12 @@ export default function GravityIO() {
 }
 
 // ─── Death Screen ─────────────────────────────────────────────────────────────
+function comboStatColor(n) {
+  if (n >= 8) return "#ff6b6b";
+  if (n >= 5) return "#ffd43b";
+  if (n >= 3) return "#b197fc";
+  return "#63e6be";
+}
 function fmt(n) {
   if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
   if (n >= 1e3) return (n / 1e3).toFixed(1) + "k";
@@ -189,10 +195,12 @@ function DeathScreen({ stats, history, onRetry, onHome }) {
     { label: "최고 질량",      value: fmt(stats.peakMass),                   color: "#ffd43b" },
     { label: "최고 속도",      value: fmt(stats.peakSpeed),                  color: "#69db7c" },
     { label: "최고 모멘텀",    value: fmt(stats.peakMomentum),               color: "#63e6be" },
-    { label: "킬",             value: stats.kills,                           color: "#ff6b6b" },
-    { label: "혜성 흡수",      value: stats.cometsAbsorbed,                  color: "#63e6be" },
-    { label: "슬링샷 보너스",  value: fmt(stats.slingshotTotal) + " p",      color: "#ffd43b" },
-    { label: "궤도 시간",      value: fmtTime(stats.orbitTime),              color: "#b197fc" },
+    { label: "킬",             value: stats.kills,                              color: "#ff6b6b" },
+    { label: "혜성 흡수",      value: stats.cometsAbsorbed,                     color: "#63e6be" },
+    { label: "슬링샷 보너스",  value: fmt(stats.slingshotTotal) + " p",         color: "#ffd43b" },
+    { label: "궤도 시간",      value: fmtTime(stats.orbitTime),                 color: "#b197fc" },
+    { label: "BH 공전 횟수",   value: stats.orbitRevolves + "회",               color: "#63e6be" },
+    { label: "오빗 콤보 보너스", value: fmt(stats.orbitBonusTotal) + " p",      color: comboStatColor(stats.orbitRevolves) },
   ];
 
   return (

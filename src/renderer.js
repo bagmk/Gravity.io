@@ -1,6 +1,21 @@
 import { MAP_W, MAP_H, BH_LJ_EQ, BH_KILL_R, ORBIT_TIME_REQ } from "./constants.js";
 import { mr, wrapDx, wrapDy, di } from "./utils.js";
 
+function fmt(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "k";
+  return Math.floor(n).toLocaleString();
+}
+function hexAlpha(hex, a) {
+  return hex + Math.round(Math.min(a, 1) * 255).toString(16).padStart(2, "0");
+}
+function comboRingColor(n) {
+  if (n >= 8) return "#ff6b6b";
+  if (n >= 5) return "#ffd43b";
+  if (n >= 3) return "#b197fc";
+  return "#63e6be";
+}
+
 export function render(ctx, S, W, H, cfg) {
   const P = S.p;
   // sqrt-based zoom: view expands as player grows, player stays small on screen
@@ -129,27 +144,56 @@ export function render(ctx, S, W, H, cfg) {
 
   // ── Orbit ring around player ────────────────────────────────────────────────
   if (S.orbitState?.active && P.alive) {
+    const OS    = S.orbitState;
     const px2   = vx(P.x), py2 = vy(P.y);
     const or    = mr(P.mass) * 1.7;
-    const prog  = Math.min((S.orbitState.time - ORBIT_TIME_REQ) * 0.4, 1);
+    const combo = OS.combo;
+    const color = comboRingColor(combo);
+    // Progress arc for current orbit
+    const arcProg = Math.min(OS.angleAcc / (Math.PI * 2), 1);
+    ctx.beginPath();
+    ctx.arc(px2, py2, or, -Math.PI / 2, -Math.PI / 2 + arcProg * Math.PI * 2);
+    ctx.strokeStyle = color + "cc";
+    ctx.lineWidth   = 3 / zoom;
+    ctx.stroke();
+    // Full dashed ring
     ctx.beginPath(); ctx.arc(px2, py2, or, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(99, 230, 190, ${0.3 + prog * 0.4})`;
-    ctx.lineWidth   = 2 / zoom;
+    ctx.strokeStyle = color + "44";
+    ctx.lineWidth   = 1.5 / zoom;
     ctx.setLineDash([5 / zoom, 7 / zoom]);
     ctx.stroke();
     ctx.setLineDash([]);
+    // Combo label
+    if (combo > 0) {
+      const fs = Math.max(9, 11) / zoom;
+      ctx.font = `700 ${fs}px 'JetBrains Mono', monospace`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = color + "dd";
+      ctx.fillText(`×${combo}  ×${(Math.pow(1.5, combo - 1)).toFixed(1)}`, px2, py2 - or - 10 / zoom);
+    }
   }
 
-  // ── Slingshot bonus popups (world space) ────────────────────────────────────
-  if (S.slingshotBonuses) {
-    for (const b of S.slingshotBonuses) {
+  // ── Bonus popups (slingshot + orbit combo, world space) ─────────────────────
+  if (S.bonusPopups) {
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (const b of S.bonusPopups) {
       const alpha = Math.min(b.life, 1);
-      const fs    = 13 / zoom;
-      ctx.font    = `700 ${fs}px 'JetBrains Mono', monospace`;
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillStyle = `rgba(255, 212, 59, ${alpha})`;
-      ctx.fillText(`⚡ +${b.value.toLocaleString()} p`, vx(b.x), vy(b.y));
+      const fs    = Math.min(15, 13) / zoom;
+      ctx.font      = `700 ${fs}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = hexAlpha(b.color, alpha);
+      ctx.fillText(b.label, vx(b.x), vy(b.y));
     }
+  }
+
+  // ── Orbit combo broken notice (world space, near player) ─────────────────────
+  if (S.orbitState?.broken && P.alive) {
+    const br    = S.orbitState.broken;
+    const alpha = Math.min(br.life, 1);
+    const fs    = 12 / zoom;
+    ctx.font      = `700 ${fs}px 'JetBrains Mono', monospace`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = hexAlpha("#ff6b6b", alpha);
+    ctx.fillText(`✕ ORBIT ×${br.combo} BROKEN`, vx(P.x), vy(P.y) - mr(P.mass) * 2.5);
   }
 
   ctx.restore();
@@ -345,12 +389,26 @@ function drawHUD(ctx, S, P, W, H, zoom, cfg, vx, vy, wells) {
   ctx.strokeStyle = "rgba(255,255,255,0.15)";
   ctx.strokeRect(mmx + S.cam.x * sc - vw / 2, mmy + S.cam.y * sc - vh / 2, vw, vh);
 
-  // ── Orbit locked indicator ────────────────────────────────────────────────
+  // ── Orbit locked + slingshot HUD ──────────────────────────────────────────
   if (S.orbitState?.active) {
-    ctx.fillStyle = "rgba(99, 230, 190, 0.7)";
+    const OS    = S.orbitState;
+    const combo = OS.combo;
+    const mult  = combo > 0 ? `×${(Math.pow(1.5, combo - 1)).toFixed(1)}` : "";
+    const col   = comboRingColor(combo);
+    ctx.font = "600 10px 'JetBrains Mono', monospace";
+    ctx.fillStyle = col; ctx.textAlign = "center";
+    ctx.fillText(`◎ ORBIT COMBO ${combo > 0 ? `×${combo}` : "LOCK"}  ${mult}`, W / 2, H - 56);
+    if (OS.sessionBonus > 0) {
+      ctx.font = "300 9px 'JetBrains Mono', monospace";
+      ctx.fillStyle = col + "99";
+      ctx.fillText(`+${fmt(OS.sessionBonus)} p this orbit`, W / 2, H - 44);
+    }
+  }
+  // Slingshot session total (fades in when > 0)
+  if ((S.slingshotSessionBonus || 0) > 0) {
     ctx.font = "300 9px 'JetBrains Mono', monospace";
-    ctx.textAlign = "center";
-    ctx.fillText("◎ ORBIT LOCKED  +momentum", W / 2, H - 56);
+    ctx.fillStyle = "rgba(255,212,59,0.5)"; ctx.textAlign = "left";
+    ctx.fillText(`⚡ ${fmt(S.slingshotSessionBonus)} p slingshot`, 12, H - 28);
   }
 
   // ── Comet incoming alert ──────────────────────────────────────────────────

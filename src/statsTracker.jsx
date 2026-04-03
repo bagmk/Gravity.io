@@ -4,15 +4,17 @@ const MAX_SAMPLES = 180;
 
 export function initStats(S) {
   S.stats = {
-    kills:          0,
-    slingshotTotal: 0,
-    orbitTime:      0,
-    orbitCount:     0,
-    cometsAbsorbed: 0,
-    peakSpeed:      0,
-    peakMass:       0,
-    peakMomentum:   0,
-    survivalTime:   0,
+    kills:           0,
+    slingshotTotal:  0,
+    orbitTime:       0,
+    orbitCount:      0,
+    orbitRevolves:   0,   // total completed 360° orbits
+    orbitBonusTotal: 0,   // total momentum from orbit combos
+    cometsAbsorbed:  0,
+    peakSpeed:       0,
+    peakMass:        0,
+    peakMomentum:    0,
+    survivalTime:    0,
   };
   S.history = [];      // [{ t, spd, mass, momentum }]
   S._histTimer = 0;
